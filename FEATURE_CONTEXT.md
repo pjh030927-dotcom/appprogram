@@ -116,9 +116,9 @@ Agent가 AC를 잘못 요약하면 코드를 수정하게 두지 말고 이 문�
 
 ## 코드 완성 후 실행 결과
 
-- `flutter analyze` 결과: **[오류 0건 / 오류 내용]**
-- AC1 결과: **[통과 / 실패]** — 증거 `evidence/ac1-valid.png`
-- AC2 결과: **[통과 / 실패]** — 증거 `evidence/ac2-empty.png`
-- AC3 결과: **[통과 / 실패]** — 증거 `evidence/ac3-complete.png`
-- 실패했다면 첫 실패 원인: **[한 문장]**
-- 다음에 할 한 가지 행동: **[한 문장]**
+- `flutter analyze` 결과: **[오류 1건 / 테스트 화면에서의 메인 클래스 이름 오류]** 수정 완료
+- AC1 결과: **[통과]** — 증거 `evidence/ac1-valid.png`
+- AC2 결과: **[통과]** — 증거 `evidence/ac2-empty.png`
+- AC3 결과: **[통과]** — 증거 `evidence/ac3-complete.png`
+- 실패했다면 첫 실패 원인: **[테스트 화면에서의 메인 클래스 이름 오류]**
+- 다음에 할 한 가지 행동: **[widget_test.dart 에 있는 myApp()부분 수정]**
