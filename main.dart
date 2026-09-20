@@ -58,7 +58,9 @@ class _StudyGoalPageState extends State<StudyGoalPage> {
   }
 
   void _toggleGoal(int index) {
-    // TODO(AC3): 선택한 객체에 완료 전환을 요청하고 화면을 갱신한다.
+    setState(() {
+      _goals[index].toggle();
+    });
   }
 
   @override
