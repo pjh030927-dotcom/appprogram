@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../models/resume_model.dart';
+import '../providers/resume_provider.dart';
+import '../providers/experience_provider.dart';
+import 'experience_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -8,10 +14,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Map<String, dynamic>> _resumeList = [];
-
   final TextEditingController _companyController = TextEditingController();
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ResumeProvider>().loadResumes();
+      context.read<ExperienceProvider>().loadExperiences();
+    });
+  }
 
   @override
   void dispose() {
@@ -19,7 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // 날짜를 YYYY-MM-DD 형식으로 변환하는 함수
   String _formatDate(DateTime date) {
     final year = date.year.toString();
     final month = date.month.toString().padLeft(2, '0');
@@ -27,7 +39,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$year-$month-$day';
   }
 
-  // 남은 마감 일시(D-day) 계산 함수
   String _calculateDday(DateTime deadline) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -36,10 +47,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (difference > 0) return 'D-$difference';
     if (difference == 0) return 'D-Day';
-    return 'D+${difference.abs()} (마감됨)';
+    return 'D+${difference.abs()} (마감)';
   }
 
-  // 새 자소서 추가 다이얼로그 (10주차 핵심 사용자 행동)
   void _showAddResumeDialog() {
     _selectedDate = DateTime.now().add(const Duration(days: 7));
     _companyController.clear();
@@ -51,7 +61,10 @@ class _HomeScreenState extends State<HomeScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: const Text('새 지원 기업 추가'),
+              title: const Text(
+                '새 지원 기업 추가',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,22 +72,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   TextField(
                     controller: _companyController,
                     decoration: InputDecoration(
-                      labelText: '지원 기업명 (예: 네이버)',
-                      errorText:
-                          errorMessage, // [수정 반영 3 - AC2] 빈 값 입력 시 에러 문구 표시
+                      labelText: '지원 기업 및 직무 (예: 삼성전자 DS SW개발)',
+                      errorText: errorMessage,
                     ),
                     onChanged: (_) {
                       if (errorMessage != null) {
-                        setStateDialog(() {
-                          errorMessage = null;
-                        });
+                        setStateDialog(() => errorMessage = null);
                       }
                     },
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Text('제출 마감일: '),
+                      const Text('서류 마감일: '),
                       TextButton.icon(
                         onPressed: () async {
                           final DateTime? picked = await showDatePicker(
@@ -88,9 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           );
                           if (picked != null) {
-                            setStateDialog(() {
-                              _selectedDate = picked;
-                            });
+                            setStateDialog(() => _selectedDate = picked);
                           }
                         },
                         icon: const Icon(Icons.calendar_today, size: 16),
@@ -108,25 +116,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 ElevatedButton(
                   onPressed: () {
                     final companyName = _companyController.text.trim();
-
-                    // [수정 반영 3 - AC2] 공백 상태로 등록 시도 시 차단 및 안내 문구 출력
                     if (companyName.isEmpty) {
-                      setStateDialog(() {
-                        errorMessage = '빈 공간없이 입력해주세요';
-                      });
-                      ScaffoldMessenger.of(this.context).showSnackBar(
-                        const SnackBar(content: Text('빈 공간없이 입력해주세요')),
-                      );
+                      setStateDialog(() => errorMessage = '빈 공간없이 입력해주세요');
                       return;
                     }
-
-                    // 정상 입력 시 메모리 리스트에 추가하고 화면 갱신
-                    setState(() {
-                      _resumeList.add({
-                        'company': companyName,
-                        'deadline': _selectedDate,
-                      });
-                    });
+                    final newResume = ResumeModel(
+                      company: companyName,
+                      deadline: _selectedDate,
+                    );
+                    context.read<ResumeProvider>().addResume(newResume);
                     Navigator.pop(dialogContext);
                   },
                   child: const Text('저장'),
@@ -139,35 +137,83 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _confirmDelete(BuildContext context, int index, String companyName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('자소서 삭제'),
+        content: Text('$companyName 항목을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              context.read<ResumeProvider>().deleteResume(index);
+              Navigator.pop(ctx);
+            },
+            child: const Text('삭제', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final resumeList = context.watch<ResumeProvider>().resumeList;
+    final expList = context.watch<ExperienceProvider>().experienceList;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('자소서 대시보드'),
+        title: const Row(
+          children: [
+            Icon(Icons.business_center_rounded, size: 24),
+            SizedBox(width: 10),
+            Text(
+              '커리어핏 AI 자소서 매니저',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
         actions: [
-          // 추후 확장 기능: 공고 보기 (UI 버튼만 배치)
           TextButton.icon(
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('공고 보기 기능은 준비 중입니다.')),
+                const SnackBar(content: Text('채용 공고 연동 기능은 추후 확장 예정입니다.')),
               );
             },
-            icon: const Icon(Icons.search),
-            label: const Text('공고 보기 (준비 중)'),
-            style: TextButton.styleFrom(foregroundColor: Colors.grey),
+            icon: const Icon(
+              Icons.travel_explore,
+              color: Colors.white70,
+              size: 18,
+            ),
+            label: const Text('공고 보기', style: TextStyle(color: Colors.white70)),
           ),
-          const SizedBox(width: 12),
-          // 필수 기능 진입 버튼: 내 기본 경험 정리하기
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('내 기본 경험 정리하기 화면은 다음 주차에 연결됩니다.')),
-              );
-            },
-            icon: const Icon(Icons.edit_document),
-            label: const Text('내 기본 경험 정리하기'),
+          const SizedBox(width: 8),
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF1565C0),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ExperienceScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.assignment_ind_outlined, size: 18),
+              label: Text(
+                '내 스펙·경험 입력 (${expList.length})',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
-          const SizedBox(width: 24),
         ],
       ),
       body: Padding(
@@ -175,49 +221,99 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '작성 중인 자소서 목록',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                ElevatedButton.icon(
-                  onPressed: _showAddResumeDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('새 자소서 추가'),
-                ),
-              ],
+            // 상단 취업 준비 현황 요약 배너
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFDBEAFE), width: 1.5),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '나의 지원 및 스펙 현황',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '작성 중인 자소서 ${resumeList.length}건  |  등록된 학력·자격증·경험 ${expList.length}건',
+                          style: const TextStyle(
+                            color: Colors.black54,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _showAddResumeDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('새 지원 기업 추가'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
-            // [AC3 반영] 빈 상태 안내 문구 및 자소서 카드 그리드 표시
+            const Text(
+              '지원 기업별 자소서 마감 현황',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 16),
             Expanded(
-              child: _resumeList.isEmpty
-                  ? const Center(
-                      child: Text('작성 중인 자소서가 없습니다. 새 자소서를 추가해 주세요.'),
+              child: resumeList.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.post_add_rounded,
+                            size: 56,
+                            color: Colors.blue.shade200,
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            '작성 중인 자소서가 없습니다.\n우측 상단의 [새 지원 기업 추가] 버튼을 눌러 시작해 보세요.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.black54),
+                          ),
+                        ],
+                      ),
                     )
                   : GridView.builder(
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 350,
-                            childAspectRatio: 2.3,
+                            maxCrossAxisExtent: 360,
+                            childAspectRatio: 2.1,
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
                           ),
-                      itemCount: _resumeList.length,
+                      itemCount: resumeList.length,
                       itemBuilder: (context, index) {
-                        final resume = _resumeList[index];
-                        // [수정 반영 2] Null 안전성 보장 (String? -> String 변환 및 기본값 처리)
-                        final companyName =
-                            (resume['company'] as String?) ?? '';
-                        final deadline =
-                            (resume['deadline'] as DateTime?) ?? DateTime.now();
-                        final dDayString = _calculateDday(deadline);
+                        final resume = resumeList[index];
+                        final dDayString = _calculateDday(resume.deadline);
 
                         return Card(
-                          elevation: 2,
+                          elevation: 0,
+                          color: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
                           child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                            padding: const EdgeInsets.all(18.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -227,36 +323,75 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        companyName,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge,
+                                        resume.company,
+                                        style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0F172A),
+                                        ),
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
+                                        horizontal: 10,
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0x1AFF5252),
-                                        borderRadius: BorderRadius.circular(8),
+                                        color: const Color(0xFFEFF6FF),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFFBFDBFE),
+                                        ),
                                       ),
                                       child: Text(
                                         dDayString,
                                         style: const TextStyle(
-                                          color: Colors.redAccent,
+                                          color: Color(0xFF1D4ED8),
                                           fontWeight: FontWeight.bold,
+                                          fontSize: 12,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const Spacer(),
-                                Text(
-                                  '마감일: ${_formatDate(deadline)}',
-                                  style: const TextStyle(color: Colors.black54),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.schedule,
+                                          size: 15,
+                                          color: Colors.black45,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '마감일: ${_formatDate(resume.deadline)}',
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.grey,
+                                        size: 20,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () => _confirmDelete(
+                                        context,
+                                        index,
+                                        resume.company,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
