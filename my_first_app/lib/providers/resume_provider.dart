@@ -11,35 +11,58 @@ class ResumeProvider with ChangeNotifier {
 
   List<ResumeModel> get resumeList => _resumeList;
 
-  // 앱 시작 시 SharedPreferences에서 데이터 불러오기
+  ResumeModel? getById(String id) {
+    for (final resume in _resumeList) {
+      if (resume.id == id) return resume;
+    }
+    return null;
+  }
+
   Future<void> loadResumes() async {
     final prefs = await SharedPreferences.getInstance();
     final String? jsonString = prefs.getString(_prefKey);
 
     if (jsonString != null) {
       final List<dynamic> decodedList = jsonDecode(jsonString);
-      _resumeList = decodedList
-          .map((item) => ResumeModel.fromJson(item as Map<String, dynamic>))
-          .toList();
-      notifyListeners(); // 화면 갱신
+      bool needsMigration = false;
+      final baseTimestamp = DateTime.now().microsecondsSinceEpoch;
+
+      _resumeList = List.generate(decodedList.length, (i) {
+        final map = decodedList[i] as Map<String, dynamic>;
+        final rawId = map['id'] as String?;
+        if (rawId == null || rawId.isEmpty) {
+          needsMigration = true;
+        }
+        return ResumeModel.fromJson(map, fallbackId: '${baseTimestamp}_$i');
+      });
+
+      if (needsMigration) {
+        await _saveToPrefs();
+      }
+      notifyListeners();
     }
   }
 
-  // 새 자소서 추가 및 저장
   Future<void> addResume(ResumeModel newResume) async {
     _resumeList.add(newResume);
     await _saveToPrefs();
-    notifyListeners(); // 화면 갱신
+    notifyListeners();
   }
 
-  // 자소서 삭제
-  Future<void> deleteResume(int index) async {
-    _resumeList.removeAt(index);
+  Future<void> updateResumeById(String id, ResumeModel updatedResume) async {
+    final index = _resumeList.indexWhere((r) => r.id == id);
+    if (index == -1) return;
+    _resumeList[index] = updatedResume;
     await _saveToPrefs();
-    notifyListeners(); // 화면 갱신
+    notifyListeners();
   }
 
-  // SharedPreferences에 데이터 저장하기
+  Future<void> deleteResumeById(String id) async {
+    _resumeList.removeWhere((r) => r.id == id);
+    await _saveToPrefs();
+    notifyListeners();
+  }
+
   Future<void> _saveToPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final String jsonString = jsonEncode(

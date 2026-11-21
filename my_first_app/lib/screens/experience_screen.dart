@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 
 import '../models/experience_model.dart';
 import '../providers/experience_provider.dart';
@@ -156,6 +157,17 @@ class _ExperienceScreenState extends State<ExperienceScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: '대시보드로 돌아가기',
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/');
+            }
+          },
+        ),
         title: const Text(
           '내 기본 스펙 & 경험 정리',
           style: TextStyle(fontWeight: FontWeight.bold),

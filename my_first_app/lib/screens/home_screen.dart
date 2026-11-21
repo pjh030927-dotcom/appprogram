@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/resume_model.dart';
 import '../providers/resume_provider.dart';
 import '../providers/experience_provider.dart';
-import 'experience_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,15 +16,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _companyController = TextEditingController();
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ResumeProvider>().loadResumes();
-      context.read<ExperienceProvider>().loadExperiences();
-    });
-  }
 
   @override
   void dispose() {
@@ -137,12 +128,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context, int index, String companyName) {
+  void _confirmDelete(BuildContext context, ResumeModel resume) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('자소서 삭제'),
-        content: Text('$companyName 항목을 삭제하시겠습니까?'),
+        content: Text('${resume.company} 항목을 삭제하시겠습니까?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -150,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           TextButton(
             onPressed: () {
-              context.read<ResumeProvider>().deleteResume(index);
+              context.read<ResumeProvider>().deleteResumeById(resume.id);
               Navigator.pop(ctx);
             },
             child: const Text('삭제', style: TextStyle(color: Colors.red)),
@@ -199,14 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 backgroundColor: Colors.white,
                 foregroundColor: const Color(0xFF1565C0),
               ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ExperienceScreen(),
-                  ),
-                );
-              },
+              onPressed: () => context.push('/specs'),
               icon: const Icon(Icons.assignment_ind_outlined, size: 18),
               label: Text(
                 '내 스펙·경험 입력 (${expList.length})',
@@ -221,7 +205,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 상단 취업 준비 현황 요약 배너
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -308,92 +291,95 @@ class _HomeScreenState extends State<HomeScreen> {
                         return Card(
                           elevation: 0,
                           color: Colors.white,
+                          clipBehavior: Clip.antiAlias,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                             side: const BorderSide(color: Color(0xFFE2E8F0)),
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(18.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        resume.company,
-                                        style: const TextStyle(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF0F172A),
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFEFF6FF),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: const Color(0xFFBFDBFE),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        dDayString,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1D4ED8),
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const Spacer(),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.schedule,
-                                          size: 15,
-                                          color: Colors.black45,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '마감일: ${_formatDate(resume.deadline)}',
+                          child: InkWell(
+                            onTap: () => context.push('/resume/${resume.id}'),
+                            child: Padding(
+                              padding: const EdgeInsets.all(18.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          resume.company,
                                           style: const TextStyle(
-                                            color: Colors.black54,
-                                            fontSize: 13,
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF0F172A),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFFBFDBFE),
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.delete_outline,
-                                        color: Colors.grey,
-                                        size: 20,
+                                        child: Text(
+                                          dDayString,
+                                          style: const TextStyle(
+                                            color: Color(0xFF1D4ED8),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
                                       ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () => _confirmDelete(
-                                        context,
-                                        index,
-                                        resume.company,
+                                    ],
+                                  ),
+                                  const Spacer(),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.schedule,
+                                            size: 15,
+                                            color: Colors.black45,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '마감일: ${_formatDate(resume.deadline)}',
+                                            style: const TextStyle(
+                                              color: Colors.black54,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.grey,
+                                          size: 20,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () =>
+                                            _confirmDelete(context, resume),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );
